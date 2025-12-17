@@ -62,7 +62,7 @@ export class Chat extends AIChatAgent<Env> {
           if (!this.env.AI) {
             console.error("this.env.AI is undefined!");
           }
-          const model = workersai("@cf/meta/llama-3.3-70b-instruct-fp8-fast");
+          const model = workersai("@cf/openai/gpt-oss-120b");
           console.log("Workers AI initialized, calling streamText");
 
           const result = streamText({
