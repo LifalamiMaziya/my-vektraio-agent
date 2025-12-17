@@ -50,12 +50,19 @@ export class Chat extends AIChatAgent<Env> {
 
           // Process any pending tool calls from previous messages
           // This handles human-in-the-loop confirmations for tools
-          const processedMessages = await processToolCalls({
-            messages: cleanedMessages,
-            dataStream: writer,
-            tools: allTools,
-            executions
-          });
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("Tool processing timed out")), 10000)
+          );
+
+          const processedMessages = await Promise.race([
+            processToolCalls({
+              messages: cleanedMessages,
+              dataStream: writer,
+              tools: allTools,
+              executions
+            }),
+            timeoutPromise
+          ]);
 
           console.log("Initializing Workers AI...");
           const workersai = createWorkersAI({ binding: this.env.AI });
