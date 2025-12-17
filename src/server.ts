@@ -55,7 +55,7 @@ export class Chat extends AIChatAgent<Env> {
         });
 
         const workersai = createWorkersAI({ binding: this.env.AI });
-        const model = workersai("@cf/openai/gpt-oss-120b");
+        const model = workersai("@cf/meta/llama-3.3-70b-instruct-fp8-fast");
 
         const result = streamText({
           system: `You are a helpful assistant that can do various tasks... 
