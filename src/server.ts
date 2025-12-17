@@ -13,17 +13,11 @@ import {
   createUIMessageStreamResponse,
   type ToolSet
 } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { createWorkersAI } from 'workers-ai-provider';
 import { processToolCalls, cleanupMessages } from "./utils";
 import { tools, executions } from "./tools";
 // import { env } from "cloudflare:workers";
 
-const model = openai("gpt-4o-2024-11-20");
-// Cloudflare AI Gateway
-// const openai = createOpenAI({
-//   apiKey: env.OPENAI_API_KEY,
-//   baseURL: env.GATEWAY_BASE_URL,
-// });
 
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
@@ -59,6 +53,9 @@ export class Chat extends AIChatAgent<Env> {
           tools: allTools,
           executions
         });
+
+        const workersai = createWorkersAI({ binding: this.env.AI });
+        const model = workersai("@cf/openai/gpt-oss-120b");
 
         const result = streamText({
           system: `You are a helpful assistant that can do various tasks... 
