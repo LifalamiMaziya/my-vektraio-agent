@@ -34,6 +34,7 @@ export class Chat extends AIChatAgent<Env> {
     //   "https://path-to-mcp-server/sse"
     // );
 
+    console.log("onChatMessage called");
     // Collect all tools, including MCP tools
     const allTools = {
       ...tools,
@@ -42,41 +43,53 @@ export class Chat extends AIChatAgent<Env> {
 
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
-        // Clean up incomplete tool calls to prevent API errors
-        const cleanedMessages = cleanupMessages(this.messages);
+        try {
+          console.log("Execute stream callback started");
+          // Clean up incomplete tool calls to prevent API errors
+          const cleanedMessages = cleanupMessages(this.messages);
 
-        // Process any pending tool calls from previous messages
-        // This handles human-in-the-loop confirmations for tools
-        const processedMessages = await processToolCalls({
-          messages: cleanedMessages,
-          dataStream: writer,
-          tools: allTools,
-          executions
-        });
+          // Process any pending tool calls from previous messages
+          // This handles human-in-the-loop confirmations for tools
+          const processedMessages = await processToolCalls({
+            messages: cleanedMessages,
+            dataStream: writer,
+            tools: allTools,
+            executions
+          });
 
-        const workersai = createWorkersAI({ binding: this.env.AI });
-        const model = workersai("@cf/meta/llama-3.3-70b-instruct-fp8-fast");
+          console.log("Initializing Workers AI...");
+          const workersai = createWorkersAI({ binding: this.env.AI });
+          if (!this.env.AI) {
+            console.error("this.env.AI is undefined!");
+          }
+          const model = workersai("@cf/meta/llama-3.3-70b-instruct-fp8-fast");
+          console.log("Workers AI initialized, calling streamText");
 
-        const result = streamText({
-          system: `You are a helpful assistant that can do various tasks... 
+          const result = streamText({
+            system: `You are a helpful assistant that can do various tasks... 
 
-${getSchedulePrompt({ date: new Date() })}
+  ${getSchedulePrompt({ date: new Date() })}
 
-If the user asks to schedule a task, use the schedule tool to schedule the task.
-`,
+  If the user asks to schedule a task, use the schedule tool to schedule the task.
+  `,
 
-          messages: convertToModelMessages(processedMessages),
-          model,
-          tools: allTools,
-          // Type boundary: streamText expects specific tool types, but base class uses ToolSet
-          // This is safe because our tools satisfy ToolSet interface (verified by 'satisfies' in tools.ts)
-          onFinish: onFinish as unknown as StreamTextOnFinishCallback<
-            typeof allTools
-          >,
-          stopWhen: stepCountIs(10)
-        });
+            messages: convertToModelMessages(processedMessages),
+            model,
+            tools: allTools,
+            // Type boundary: streamText expects specific tool types, but base class uses ToolSet
+            // This is safe because our tools satisfy ToolSet interface (verified by 'satisfies' in tools.ts)
+            onFinish: onFinish as unknown as StreamTextOnFinishCallback<
+              typeof allTools
+            >,
+            stopWhen: stepCountIs(10)
+          });
 
-        writer.merge(result.toUIMessageStream());
+          console.log("streamText called, merging stream");
+          writer.merge(result.toUIMessageStream());
+        } catch (error) {
+          console.error("Error in stream execution:", error);
+          writer.appendError(error as Error);
+        }
       }
     });
 
@@ -110,16 +123,11 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/check-open-ai-key") {
-      const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
       return Response.json({
-        success: hasOpenAIKey
+        success: true
       });
     }
-    if (!process.env.OPENAI_API_KEY) {
-      console.error(
-        "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
-      );
-    }
+
     return (
       // Route the request to our agent or return 404 if not found
       (await routeAgentRequest(request, env)) ||
